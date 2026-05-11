@@ -5,7 +5,7 @@ from __future__ import annotations
 import threading
 import time
 from enum import Enum, auto
-from typing import Optional
+from typing import Any, Callable, Optional
 
 from gpiozero import OutputDevice
 
@@ -47,7 +47,10 @@ class Modelo2:
     T_AMARELO = 2.0
     T_VERMELHO_TOTAL = 2.0
 
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        notificar: Optional[Callable[[dict[str, Any]], None]] = None,
+    ) -> None:
         self._bit0 = OutputDevice(pins.M2_BIT0, initial_value=False)
         self._bit1 = OutputDevice(pins.M2_BIT1, initial_value=False)
         self._bit2 = OutputDevice(pins.M2_BIT2, initial_value=False)
@@ -65,11 +68,13 @@ class Modelo2:
             pins.M2_BOTAO_PED_PRINCIPAL,
             "Modelo 2 — Pedestre Principal",
             on_press=self._marcar_ped_principal,
+            notificar=notificar,
         )
         self._bot_cruz = BotaoPedestre(
             pins.M2_BOTAO_PED_CRUZAMENTO,
             "Modelo 2 — Pedestre Cruzamento",
             on_press=self._marcar_ped_cruzamento,
+            notificar=notificar,
         )
 
     def _marcar_ped_principal(self) -> None:

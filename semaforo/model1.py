@@ -5,7 +5,7 @@ from __future__ import annotations
 import threading
 import time
 from enum import Enum, auto
-from typing import Optional
+from typing import Any, Callable, Optional
 
 from gpiozero import LED
 
@@ -31,7 +31,10 @@ class Modelo1:
     T_AMARELO_S = 2.0
     T_VERMELHO_S = 10.0
 
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        notificar: Optional[Callable[[dict[str, Any]], None]] = None,
+    ) -> None:
         self._led_verde = LED(pins.M1_LED_VERDE, active_high=True, initial_value=False)
         self._led_amarelo = LED(pins.M1_LED_AMARELO, active_high=True, initial_value=False)
         self._led_vermelho = LED(pins.M1_LED_VERMELHO, active_high=True, initial_value=False)
@@ -46,11 +49,13 @@ class Modelo1:
             pins.M1_BOTAO_PED_PRINCIPAL,
             "Modelo 1 — Pedestre Principal",
             on_press=self._marcar_ped,
+            notificar=notificar,
         )
         self._bot_cruz = BotaoPedestre(
             pins.M1_BOTAO_PED_CRUZAMENTO,
             "Modelo 1 — Pedestre Cruzamento",
             on_press=self._marcar_ped,
+            notificar=notificar,
         )
 
     def _marcar_ped(self) -> None:

@@ -1,63 +1,63 @@
-"""Leitura de botões com debounce e impressão imediata no terminal."""
+"""Entradas digitais para sensores (GPIO → eventos para o servidor central)."""
 
 from __future__ import annotations
 
 import sys
 import threading
 import time
-from typing import Any, Callable, Optional
+from typing import Callable, Optional
 
 from gpiozero import Button
 
 
-class BotaoPedestre:
+class SensorDigital:
     """
-    Botão ativo em nível alto; debounce via gpiozero + lockout curto
-    para um único reconhecimento por pulso (~200 ms).
+    Pulso ativo em alto (mesma convenção dos botões de pedestre).
+    Debounce + impressão + notificação opcional (ex.: TCP).
     """
 
     def __init__(
         self,
         pin: int,
         nome: str,
-        debounce_s: float = 0.05,
-        lockout_s: float = 0.25,
-        on_press: Optional[Callable[[], None]] = None,
-        notificar: Optional[Callable[[dict[str, Any]], None]] = None,
+        categoria: str,
+        sensor_id: int,
+        debounce_s: float = 0.08,
+        lockout_s: float = 0.2,
+        notificar: Optional[Callable[[dict], None]] = None,
     ) -> None:
-        self._pin = pin
         self._nome = nome
-        self._on_press = on_press
+        self._categoria = categoria
+        self._sensor_id = sensor_id
         self._notificar = notificar
         self._lockout_s = lockout_s
         self._locked_until = 0.0
         self._lock = threading.Lock()
+        self._pin = pin
 
         self._btn = Button(
             pin,
             pull_up=False,
             bounce_time=debounce_s,
         )
-        self._btn.when_pressed = self._handle_pressed
+        self._btn.when_pressed = self._on
 
-    def _handle_pressed(self) -> None:
+    def _on(self) -> None:
         with self._lock:
             t = time.monotonic()
             if t < self._locked_until:
                 return
             self._locked_until = t + self._lockout_s
 
-        msg = f"[BOTÃO] {self._nome} (GPIO) acionado\n"
-        sys.stdout.write(msg)
+        sys.stdout.write(f"[SENSOR] {self._nome} (GPIO {self._pin})\n")
         sys.stdout.flush()
-
-        if self._on_press is not None:
-            self._on_press()
 
         if self._notificar is not None:
             self._notificar(
                 {
-                    "evt": "pedestre",
+                    "evt": "sensor",
+                    "categoria": self._categoria,
+                    "id": self._sensor_id,
                     "nome": self._nome,
                     "pin": self._pin,
                 }

@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 """
-Ponto de entrada: executa Modelo 1 e/ou Modelo 2 em paralelo na Raspberry Pi.
+Entrada do sistema:
+  local         — só GPIO (semáforos na Raspberry, sem rede)
+  distribuido   — servidor distribuído: GPIO + TCP/IP (corre na Pi)
+  central       — interface de utilizador + TCP/IP (corre no PC ou na Pi)
 """
 
 from __future__ import annotations
@@ -9,24 +12,11 @@ import argparse
 import signal
 import sys
 import threading
+import time
 from typing import Any, Optional
 
 
-def _parse_args() -> argparse.Namespace:
-    p = argparse.ArgumentParser(
-        description="Controle simultâneo dos semáforos Modelo 1 (3 LEDs) e Modelo 2 (3 bits).",
-    )
-    p.add_argument(
-        "--modelo",
-        choices=("1", "2", "ambos"),
-        default="ambos",
-        help="Qual modelo executar (padrão: ambos).",
-    )
-    return p.parse_args()
-
-
-def main() -> int:
-    args = _parse_args()
+def _run_local(args: argparse.Namespace) -> int:
     stop = threading.Event()
     m1: Any = None
     m2: Any = None
@@ -67,8 +57,7 @@ def main() -> int:
             workers.append(t)
 
         sys.stdout.write(
-            "Semáforo em execução (Ctrl+C para sair). "
-            f"Modo: {args.modelo}.\n"
+            "Modo local — semáforo (Ctrl+C). Modelo: %s.\n" % args.modelo
         )
         sys.stdout.flush()
 
@@ -98,6 +87,101 @@ def main() -> int:
                 pass
 
     return 0
+
+
+def _run_distribuido(args: argparse.Namespace) -> int:
+    from semaforo.servidor_distribuido import ServidorDistribuido
+
+    sd = ServidorDistribuido(
+        bind_host=args.host,
+        port=args.port,
+        modelo=args.modelo,
+    )
+
+    def handle_sig(_sig: int, _frame: Optional[object]) -> None:
+        sys.stderr.write("\nEncerrando servidor distribuído…\n")
+        sd.close()
+
+    signal.signal(signal.SIGINT, handle_sig)
+    signal.signal(signal.SIGTERM, handle_sig)
+
+    sd.run()
+    sys.stdout.write(
+        "Servidor distribuído à escuta em %s:%s (modelo %s). Ctrl+C para sair.\n"
+        % (args.host, args.port, args.modelo)
+    )
+    sys.stdout.flush()
+    try:
+        while True:
+            time.sleep(0.5)
+    except KeyboardInterrupt:
+        pass
+    finally:
+        sd.close()
+    return 0
+
+
+def _run_central(args: argparse.Namespace) -> int:
+    from semaforo.servidor_central import ServidorCentral
+
+    sc = ServidorCentral(args.host, args.port)
+    try:
+        sc.run()
+    except (ConnectionRefusedError, OSError) as e:
+        sys.stderr.write(f"Sem ligação ao distribuído: {e}\n")
+        return 1
+    return 0
+
+
+def main() -> int:
+    p = argparse.ArgumentParser(description="Sistema de semáforos (local / central / distribuído).")
+    sub = p.add_subparsers(dest="modo", required=True)
+
+    p_loc = sub.add_parser("local", help="Apenas GPIO na máquina local (sem TCP).")
+    p_loc.add_argument(
+        "--modelo",
+        choices=("1", "2", "ambos"),
+        default="ambos",
+        help="Modelo de semáforo a executar.",
+    )
+
+    p_dist = sub.add_parser(
+        "distribuido",
+        help="Servidor com GPIO + sensores + buzzer; aceita TCP do central.",
+    )
+    p_dist.add_argument(
+        "--host",
+        default="0.0.0.0",
+        help="Endereço de escuta (padrão todas as interfaces).",
+    )
+    p_dist.add_argument("--port", type=int, default=8765, help="Porta TCP.")
+    p_dist.add_argument(
+        "--modelo",
+        choices=("1", "2", "ambos"),
+        default="ambos",
+        help="Quais máquinas de semáforo carregar.",
+    )
+
+    p_cen = sub.add_parser(
+        "central",
+        help="Interface de utilizador na consola; liga ao distribuído por TCP.",
+    )
+    p_cen.add_argument(
+        "--host",
+        required=True,
+        help="IP ou hostname do servidor distribuído (ex.: 192.168.1.10).",
+    )
+    p_cen.add_argument("--port", type=int, default=8765, help="Porta TCP do distribuído.")
+
+    args = p.parse_args()
+
+    if args.modo == "local":
+        return _run_local(args)
+    if args.modo == "distribuido":
+        return _run_distribuido(args)
+    if args.modo == "central":
+        return _run_central(args)
+    return 1
 
 
 if __name__ == "__main__":
