@@ -17,36 +17,55 @@ import time
 from typing import Any, Optional
 
 
-def _configure_gpio_pin_factory() -> None:
+def _configure_gpio_pin_factory() -> bool:
     """
-    Pi OS recente: sem lgpio/RPi.GPIO no *mesmo* Python do venv, o gpiozero cai
-    no NativeFactory (sysfs), que muitas vezes não existe — qualquer BCM falha.
+    Evita o NativeFactory (sysfs), que em Pi OS recente não serve.
+
+    Ordem: **lgpio** → **RPi.GPIO** → **pigpio** (daemon `pigpiod` já a correr;
+    só precisas de `pip install pigpio` no venv — sem compilar lgpio).
     """
     if os.environ.get("GPIOZERO_PIN_FACTORY", "").strip():
-        return
+        return True
     try:
         import lgpio  # noqa: F401
 
         os.environ["GPIOZERO_PIN_FACTORY"] = "lgpio"
-        return
+        return True
     except ImportError:
         pass
     try:
         import RPi.GPIO  # noqa: F401
 
         os.environ["GPIOZERO_PIN_FACTORY"] = "rpigpio"
-        return
+        return True
     except ImportError:
         pass
+    try:
+        import pigpio
+
+        pi = pigpio.pi()
+        if pi.connected:
+            pi.stop()
+            os.environ["GPIOZERO_PIN_FACTORY"] = "pigpio"
+            return True
+    except Exception:
+        pass
+
     sys.stderr.write(
-        "AVISO: na Pi, instale GPIO no venv: pip install -r requirements-pi.txt\n"
-        "       (senão o gpiozero usa sysfs e costuma dar OSError / FileNotFound).\n"
+        "ERRO: nenhum backend GPIO utilizável (lgpio / RPi.GPIO / pigpio).\n"
+        "  Sem instalar lgpio, tenta no venv:\n"
+        "    pip install pigpio\n"
+        "  Isto usa o daemon pigpiod (muitas imagens Raspberry Pi já o têm activo).\n"
+        "  Verifica: python3 -c \"import pigpio; p=pigpio.pi(); print(p.connected); p.stop()\"\n"
+        "  Outras opções: README (piwheels lgpio, venv --system-site-packages, sudo apt).\n"
     )
     sys.stderr.flush()
+    return False
 
 
 def _run_local(args: argparse.Namespace) -> int:
-    _configure_gpio_pin_factory()
+    if not _configure_gpio_pin_factory():
+        return 2
     stop = threading.Event()
     m1: Any = None
     m2: Any = None
@@ -120,7 +139,8 @@ def _run_local(args: argparse.Namespace) -> int:
 
 
 def _run_distribuido(args: argparse.Namespace) -> int:
-    _configure_gpio_pin_factory()
+    if not _configure_gpio_pin_factory():
+        return 2
     from semaforo.servidor_distribuido import ServidorDistribuido
 
     sd = ServidorDistribuido(

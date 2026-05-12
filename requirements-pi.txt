@@ -1,7 +1,23 @@
-# Pacotes extra para GPIO real na Raspberry Pi (além de requirements.txt).
-# Instalar no venv da Pi:
-#   pip install -r requirements.txt
-#   pip install -r requirements-pi.txt
+# Extras na Raspberry Pi (além de requirements.txt).
 #
-lgpio>=0.2.0.0
+# --- lgpio (sistema ou piwheels) — ver README ---
+#
+# --- Alternativa SEM compilar lgpio: pigpio ---
+# Só precisas de: pip install pigpio
+# Exige o daemon pigpiod a correr (muitas imagens Raspberry Pi já trazem).
+# Teste: python3 -c "import pigpio; p=pigpio.pi(); print(p.connected); p.stop()"
+#
+pigpio>=1.78
+#
+# Opcional (Pi 3/4):
 RPi.GPIO>=0.7.1
+
+# --- Sem permissão sudo ---
+# 1) Testa se o sistema JÁ tem lgpio (muitas imagens da universidade vêm com isso):
+#      /usr/bin/python3 -c "import lgpio"
+#    Se funcionar: recria o venv só com --system-site-packages (não precisas de apt).
+#
+# 2) Se não existir, tenta wheel pré-compilado (sem gcc/sudo), no venv ativo:
+#      pip install "lgpio>=0.2.0.0" --extra-index-url https://www.piwheels.org/simple
+#
+# 3) Se ainda falhar: fala com a coordenação do laboratório (instalar python3-lgpio na imagem).
