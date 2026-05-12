@@ -21,22 +21,21 @@ def _configure_gpio_pin_factory() -> bool:
     """
     Evita o NativeFactory (sysfs), que em Pi OS recente não serve.
 
-    Ordem: **lgpio** → **RPi.GPIO** → **pigpio** (daemon `pigpiod` já a correr;
-    só precisas de `pip install pigpio` no venv — sem compilar lgpio).
+    Ordem: **RPi.GPIO** → **lgpio** → **pigpio** (daemon `pigpiod` activo).
     """
     if os.environ.get("GPIOZERO_PIN_FACTORY", "").strip():
         return True
     try:
-        import lgpio  # noqa: F401
+        import RPi.GPIO  # noqa: F401
 
-        os.environ["GPIOZERO_PIN_FACTORY"] = "lgpio"
+        os.environ["GPIOZERO_PIN_FACTORY"] = "rpigpio"
         return True
     except ImportError:
         pass
     try:
-        import RPi.GPIO  # noqa: F401
+        import lgpio  # noqa: F401
 
-        os.environ["GPIOZERO_PIN_FACTORY"] = "rpigpio"
+        os.environ["GPIOZERO_PIN_FACTORY"] = "lgpio"
         return True
     except ImportError:
         pass
@@ -52,12 +51,11 @@ def _configure_gpio_pin_factory() -> bool:
         pass
 
     sys.stderr.write(
-        "ERRO: nenhum backend GPIO utilizável (lgpio / RPi.GPIO / pigpio).\n"
-        "  Sem instalar lgpio, tenta no venv:\n"
-        "    pip install pigpio\n"
-        "  Isto usa o daemon pigpiod (muitas imagens Raspberry Pi já o têm activo).\n"
-        "  Verifica: python3 -c \"import pigpio; p=pigpio.pi(); print(p.connected); p.stop()\"\n"
-        "  Outras opções: README (piwheels lgpio, venv --system-site-packages, sudo apt).\n"
+        "ERRO: nenhum backend GPIO utilizável (RPi.GPIO / lgpio / pigpio).\n"
+        "  Tenta no venv: pip install RPi.GPIO\n"
+        "  Ou: pip install pigpio (com pigpiod a correr)\n"
+        "  Verifica pigpio: python3 -c \"import pigpio; p=pigpio.pi(); print(p.connected); p.stop()\"\n"
+        "  Alternativa: README (lgpio via piwheels ou venv --system-site-packages).\n"
     )
     sys.stderr.flush()
     return False

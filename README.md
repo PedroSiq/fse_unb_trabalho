@@ -30,78 +30,44 @@ Mensagens: **JSON uma linha por mensagem**, campo `"v": 1`.
 
 ## Raspberry Pi: backend GPIO e BCM 1 (pedestre M1)
 
-Sem **`lgpio`** ou **`RPi.GPIO`**, o `gpiozero` cai no *NativeFactory* (sysfs) e em Pi OS recente **quebra** (`OSError` / `FileNotFound` em `/sys/class/gpio/...`).
+O `main.py` escolhe o backend nesta ordem: **RPi.GPIO** → **lgpio** → **pigpio** (evita o *NativeFactory*/sysfs, que em Pi OS recente costuma falhar).
 
-### Caminho recomendado (evita `Failed building wheel for lgpio`)
+Sem nenhum destes no interpretador que corre o programa, aparece erro antes de abrir pinos.
 
-O pacote **`python3-lgpio`** vem pronto no `apt` — **não** depende de compilar com `pip`.
+### Caminho principal: **RPi.GPIO** (preferido)
+
+No venv da Pi (muitas vezes há *wheel* ARM no [piwheels](https://www.piwheels.org/)):
 
 ```bash
-sudo apt update
-sudo apt install -y python3-lgpio
-cd ~/fse_unb_trabalho   # pasta do projeto
-deactivate 2>/dev/null || true
-rm -rf .venv
-python3 -m venv .venv --system-site-packages
 source .venv/bin/activate
-pip install -U pip
-pip install -r requirements.txt
-pip install -r requirements-pi.txt   # opcional: RPi.GPIO em Pi 3/4
+pip install "RPi.GPIO>=0.7.1" --extra-index-url https://www.piwheels.org/simple
+python3 -c "import RPi.GPIO; print('RPi.GPIO OK')"
+```
+
+**Nota:** em **Raspberry Pi 5** / Python muito recente, o `RPi.GPIO` pode **não** instalar ou não suportar a placa — aí usa **lgpio** ou **pigpio** abaixo.
+
+### Secundário: **lgpio** (Pi OS moderno, sem sysfs)
+
+Com `sudo`: `sudo apt install python3-lgpio` e venv com `--system-site-packages`, ou `pip install lgpio` com piwheels / toolchain (ver secções antigas no histórico do README se precisares).
+
+```bash
 python3 -c "import lgpio; print('lgpio OK')"
 ```
 
-O truque é **`--system-site-packages`**: o venv passa a “ver” o `lgpio` instalado pelo sistema. O `main.py` escolhe automaticamente o backend `lgpio` quando `import lgpio` funciona.
-
-### Sem permissão `sudo` (laboratório)
-
-1. **Ver se o `lgpio` já vem na imagem** (sem instalar nada com apt):
-
-   ```bash
-   /usr/bin/python3 -c "import lgpio; print('OK')"
-   ```
-
-   Se imprimir `OK`, **não precisas de sudo**: apaga o venv e recria-o só com pacotes do sistema visíveis:
-
-   ```bash
-   cd ~/fse_unb_trabalho
-   rm -rf .venv
-   python3 -m venv .venv --system-site-packages
-   source .venv/bin/activate
-   pip install -r requirements.txt
-   python3 -c "import lgpio; print('OK no venv')"
-   ```
-
-2. **Se o passo 1 falhar**, tenta **wheel pré-compilado** (muitas vezes evita compilar; não usa `sudo`):
-
-   ```bash
-   source .venv/bin/activate
-   pip install "lgpio>=0.2.0.0" --extra-index-url https://www.piwheels.org/simple
-   ```
-
-3. Ainda assim a falhar: **coordenação do FSE** — pedir `python3-lgpio` na imagem da Pi ou permissão pontual para `apt install`.
-
-### Alternativa sem `lgpio`: **pigpio**
-
-O `gpiozero` pode usar o backend **`pigpio`**, que fala com o daemon **`pigpiod`** (muitas vezes já activo na imagem; **não** precisa de `sudo` para `pip`).
+### Terceiro: **pigpio** (precisa de `pigpiod` activo)
 
 ```bash
-source .venv/bin/activate
 pip install pigpio --extra-index-url https://www.piwheels.org/simple
-python3 -c "import pigpio; p=pigpio.pi(); print('pigpiod OK:', p.connected); p.stop()"
+python3 -c "import pigpio; p=pigpio.pi(); print('pigpiod:', p.connected); p.stop()"
 ```
 
-Se `p.connected` for `False`, o daemon não está a correr — aí só **quem gere a Pi** pode arrancar o serviço (normalmente com `sudo`).
+O `main.py` só usa **pigpio** se `RPi.GPIO` e `lgpio` não estiverem disponíveis **e** `p.connected` for `True`.
 
-O `main.py` escolhe **pigpio** automaticamente se `lgpio` e `RPi.GPIO` não existirem mas o `pigpiod` estiver disponível.
+### Sem permissão `sudo`
 
-### Se quiseres mesmo compilar o `lgpio` com pip
-
-```bash
-sudo apt install -y python3-dev swig liblgpio-dev build-essential
-pip install lgpio
-```
-
-(Em muitas máquinas do laboratório isto falha ou demora — preferir o bloco com `apt` acima.)
+1. Testa `import RPi.GPIO` e `import lgpio` com `/usr/bin/python3` — se algum funcionar, recria o venv com `python3 -m venv .venv --system-site-packages` e volta a instalar `requirements.txt` + `requirements-pi.txt`.
+2. **piwheels:** `pip install RPi.GPIO ... --extra-index-url https://www.piwheels.org/simple`
+3. Falhando tudo: **coordenação do FSE**.
 
 ### BCM 1 (tabela da entrega)
 
@@ -159,7 +125,7 @@ Encerramento: `Ctrl+C` nos modos local e distribuído; no central use `sair` ou 
 | `semaforo/servidor_distribuido.py` | TCP + GPIO + buzzer |
 | `semaforo/servidor_central.py` | Consola + cliente TCP |
 | `requirements.txt` | `gpiozero` |
-| `requirements-pi.txt` | Opcional: `RPi.GPIO` (Pi 3/4); na Pi 5 use `apt install python3-lgpio` + venv `--system-site-packages` |
+| `requirements-pi.txt` | `RPi.GPIO` (preferido), `pigpio`; `lgpio` opcional (README) |
 
 ## Comportamento resumido (semáforos)
 
