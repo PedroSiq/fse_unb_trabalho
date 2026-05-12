@@ -1,4 +1,4 @@
-"""Modelo 1 — três LEDs independentes (Verde → Amarelo → Vermelho)."""
+"""Modelo 1 — três LEDs independentes (Verde → Amarelo → Vermelho). RPi.GPIO."""
 
 from __future__ import annotations
 
@@ -7,9 +7,8 @@ import time
 from enum import Enum, auto
 from typing import Any, Callable, Optional
 
-from gpiozero import LED
-
 from semaforo import pins
+from semaforo import rpi_io
 
 
 class _Fase(Enum):
@@ -35,9 +34,12 @@ class Modelo1:
         self,
         notificar: Optional[Callable[[dict[str, Any]], None]] = None,
     ) -> None:
-        self._led_verde = LED(pins.M1_LED_VERDE, active_high=True, initial_value=False)
-        self._led_amarelo = LED(pins.M1_LED_AMARELO, active_high=True, initial_value=False)
-        self._led_vermelho = LED(pins.M1_LED_VERMELHO, active_high=True, initial_value=False)
+        rpi_io.init()
+        self._pv = pins.M1_LED_VERDE
+        self._pa = pins.M1_LED_AMARELO
+        self._px = pins.M1_LED_VERMELHO
+        for p in (self._pv, self._pa, self._px):
+            rpi_io.setup_output_low(p)
 
         self._ped_lock = threading.Lock()
         self._ped_solicitado = False
@@ -76,18 +78,18 @@ class Modelo1:
             return self._ped_solicitado
 
     def _apagar_todos(self) -> None:
-        self._led_verde.off()
-        self._led_amarelo.off()
-        self._led_vermelho.off()
+        rpi_io.write_output(self._pv, False)
+        rpi_io.write_output(self._pa, False)
+        rpi_io.write_output(self._px, False)
 
     def _set_fase(self, fase: _Fase) -> None:
         self._apagar_todos()
         if fase is _Fase.VERDE:
-            self._led_verde.on()
+            rpi_io.write_output(self._pv, True)
         elif fase is _Fase.AMARELO:
-            self._led_amarelo.on()
+            rpi_io.write_output(self._pa, True)
         else:
-            self._led_vermelho.on()
+            rpi_io.write_output(self._px, True)
 
     def run_forever(self, stop: Optional[threading.Event] = None) -> None:
         fase = _Fase.VERMELHO
@@ -150,6 +152,6 @@ class Modelo1:
     def close(self) -> None:
         self._bot_princ.close()
         self._bot_cruz.close()
-        self._led_verde.close()
-        self._led_amarelo.close()
-        self._led_vermelho.close()
+        self._apagar_todos()
+        for p in (self._pv, self._pa, self._px):
+            rpi_io.cleanup_pin(p)

@@ -1,4 +1,4 @@
-"""Entradas digitais para sensores (GPIO → eventos para o servidor central)."""
+"""Entradas digitais para sensores (RPi.GPIO + polling)."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ import threading
 import time
 from typing import Callable, Optional
 
-from gpiozero import Button
+from semaforo.rpi_io import PolledInput
 
 
 class SensorDigital:
@@ -22,7 +22,6 @@ class SensorDigital:
         nome: str,
         categoria: str,
         sensor_id: int,
-        debounce_s: float = 0.08,
         lockout_s: float = 0.2,
         notificar: Optional[Callable[[dict], None]] = None,
     ) -> None:
@@ -34,15 +33,9 @@ class SensorDigital:
         self._locked_until = 0.0
         self._lock = threading.Lock()
         self._pin = pin
+        self._poller = PolledInput(pin, self._on_rising)
 
-        self._btn = Button(
-            pin,
-            pull_up=False,
-            bounce_time=debounce_s,
-        )
-        self._btn.when_pressed = self._on
-
-    def _on(self) -> None:
+    def _on_rising(self) -> None:
         with self._lock:
             t = time.monotonic()
             if t < self._locked_until:
@@ -64,4 +57,4 @@ class SensorDigital:
             )
 
     def close(self) -> None:
-        self._btn.close()
+        self._poller.close()

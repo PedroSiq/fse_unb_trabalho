@@ -12,9 +12,8 @@ import time
 from queue import Empty, Full, Queue
 from typing import Any, Callable, Optional
 
-from gpiozero import OutputDevice
-
 from semaforo import pins
+from semaforo import rpi_io
 from semaforo.protocolo import PROTO_VERSAO, iter_mensagens, serializar
 from semaforo.sensores import SensorDigital
 
@@ -37,7 +36,9 @@ class ServidorDistribuido:
         self._clientes_lock = threading.Lock()
         self._buf_por_sock: dict[socket.socket, bytearray] = {}
 
-        self._buzzer = OutputDevice(pins.BUZZER, active_high=True, initial_value=False)
+        rpi_io.init()
+        self._buzzer_pin = pins.BUZZER
+        rpi_io.setup_output_low(self._buzzer_pin)
         self._m1: Any = None
         self._m2: Any = None
         self._sensores: list[SensorDigital] = []
@@ -64,10 +65,10 @@ class ServidorDistribuido:
     def _beep(self, ms: int) -> None:
         ms = max(10, min(ms, 5000))
         try:
-            self._buzzer.on()
+            rpi_io.write_output(self._buzzer_pin, True)
             time.sleep(ms / 1000.0)
         finally:
-            self._buzzer.off()
+            rpi_io.write_output(self._buzzer_pin, False)
 
     def _loop_envio(self) -> None:
         while not self._stop.is_set():
@@ -260,6 +261,11 @@ class ServidorDistribuido:
             except Exception:
                 pass
         try:
-            self._buzzer.close()
+            rpi_io.write_output(self._buzzer_pin, False)
+            rpi_io.cleanup_pin(self._buzzer_pin)
+        except Exception:
+            pass
+        try:
+            rpi_io.cleanup_all()
         except Exception:
             pass

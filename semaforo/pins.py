@@ -10,8 +10,7 @@ M1_LED_VERMELHO = 23
 # Modelo 1 — botões pedestre (normalmente baixo, pulso alto ~200 ms)
 # Tabela 5 da entrega: Pedestre Principal M1 = **GPIO BCM 1**. Em muitas
 # Raspberry Pi o BCM 1 está reservado (EEPROM do HAT / I2C) e o kernel
-# recusa export — gpiozero acaba com OSError 22 ou FileNotFound em
-# /sys/class/gpio/gpio1/value.
+# recusa export — RPi.GPIO/sysfs também pode falhar nesse pino.
 # Para cumprir literalmente a tabela numa Pi que aceite BCM 1:
 #   export FSE_PIN_M1_PED_PRINCIPAL=1
 # Em laboratório, se o painel ThingsBoard usar outra linha BCM, ajuste aqui.

@@ -1,4 +1,4 @@
-"""Leitura de botões com debounce e impressão imediata no terminal."""
+"""Leitura de botões com debounce e impressão imediata (RPi.GPIO + polling)."""
 
 from __future__ import annotations
 
@@ -7,20 +7,18 @@ import threading
 import time
 from typing import Any, Callable, Optional
 
-from gpiozero import Button
+from semaforo.rpi_io import PolledInput
 
 
 class BotaoPedestre:
     """
-    Botão ativo em nível alto; debounce via gpiozero + lockout curto
-    para um único reconhecimento por pulso (~200 ms).
+    Botão ativo em nível alto; pull-down interno; debounce por lockout em software.
     """
 
     def __init__(
         self,
         pin: int,
         nome: str,
-        debounce_s: float = 0.05,
         lockout_s: float = 0.25,
         on_press: Optional[Callable[[], None]] = None,
         notificar: Optional[Callable[[dict[str, Any]], None]] = None,
@@ -32,15 +30,9 @@ class BotaoPedestre:
         self._lockout_s = lockout_s
         self._locked_until = 0.0
         self._lock = threading.Lock()
+        self._poller = PolledInput(pin, self._handle_rising)
 
-        self._btn = Button(
-            pin,
-            pull_up=False,
-            bounce_time=debounce_s,
-        )
-        self._btn.when_pressed = self._handle_pressed
-
-    def _handle_pressed(self) -> None:
+    def _handle_rising(self) -> None:
         with self._lock:
             t = time.monotonic()
             if t < self._locked_until:
@@ -64,4 +56,4 @@ class BotaoPedestre:
             )
 
     def close(self) -> None:
-        self._btn.close()
+        self._poller.close()

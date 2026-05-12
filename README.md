@@ -24,54 +24,25 @@ Mensagens: **JSON uma linha por mensagem**, campo `"v": 1`.
 
 ## Requisitos
 
-- Raspberry Pi com GPIO (`gpiozero`) no **distribuído**; no **central** basta Python e rede até à Pi.
+- Raspberry Pi com **RPi.GPIO** no **distribuido** / **local**; no **central** (PC) basta Python e rede.
 - Python 3.9+.
 - Pinos BCM conforme `semaforo/pins.py` (semáforos da entrega 1 + buzzer e sensores documentados lá).
 
-## Raspberry Pi: backend GPIO e BCM 1 (pedestre M1)
+## Raspberry Pi: RPi.GPIO e BCM 1 (pedestre M1)
 
-O `main.py` escolhe o backend nesta ordem: **RPi.GPIO** → **lgpio** → **pigpio** (evita o *NativeFactory*/sysfs, que em Pi OS recente costuma falhar).
-
-Sem nenhum destes no interpretador que corre o programa, aparece erro antes de abrir pinos.
-
-### Caminho principal: **RPi.GPIO** (preferido)
-
-No venv da Pi (muitas vezes há *wheel* ARM no [piwheels](https://www.piwheels.org/)):
+O código usa **apenas RPi.GPIO** (sem gpiozero): saídas `OUT` e entradas com **polling** + pull-down interno (evita `add_event_detect`, que falha em várias Pi 5 / Python 3.13).
 
 ```bash
 source .venv/bin/activate
-pip install "RPi.GPIO>=0.7.1" --extra-index-url https://www.piwheels.org/simple
-python3 -c "import RPi.GPIO; print('RPi.GPIO OK')"
+pip install -r requirements.txt
+python3 -c "import RPi.GPIO; print('OK')"
 ```
 
-**Nota:** em **Raspberry Pi 5** / Python muito recente, o `RPi.GPIO` pode **não** instalar ou não suportar a placa — aí usa **lgpio** ou **pigpio** abaixo.
+Em **Pi 5**, se `RPi.GPIO` não instalar ou não funcionar, fala com a coordenação do laboratório (imagem com biblioteca suportada).
 
-### Secundário: **lgpio** (Pi OS moderno, sem sysfs)
+### BCM 1 (pedestre principal M1)
 
-Com `sudo`: `sudo apt install python3-lgpio` e venv com `--system-site-packages`, ou `pip install lgpio` com piwheels / toolchain (ver secções antigas no histórico do README se precisares).
-
-```bash
-python3 -c "import lgpio; print('lgpio OK')"
-```
-
-### Terceiro: **pigpio** (precisa de `pigpiod` activo)
-
-```bash
-pip install pigpio --extra-index-url https://www.piwheels.org/simple
-python3 -c "import pigpio; p=pigpio.pi(); print('pigpiod:', p.connected); p.stop()"
-```
-
-O `main.py` só usa **pigpio** se `RPi.GPIO` e `lgpio` não estiverem disponíveis **e** `p.connected` for `True`.
-
-### Sem permissão `sudo`
-
-1. Testa `import RPi.GPIO` e `import lgpio` com `/usr/bin/python3` — se algum funcionar, recria o venv com `python3 -m venv .venv --system-site-packages` e volta a instalar `requirements.txt` + `requirements-pi.txt`.
-2. **piwheels:** `pip install RPi.GPIO ... --extra-index-url https://www.piwheels.org/simple`
-3. Falhando tudo: **coordenação do FSE**.
-
-### BCM 1 (tabela da entrega)
-
-Muitas Pi reservam o BCM 1. O defeito no código é **27**; para forçar BCM 1: `export FSE_PIN_M1_PED_PRINCIPAL=1`.
+Muitas Pi reservam o BCM 1. O defeito em `pins.py` é **27** (`FSE_PIN_M1_PED_PRINCIPAL=1` para a tabela literal, se o hardware permitir).
 
 ## Instalação
 
@@ -84,7 +55,7 @@ pip install -U pip
 pip install -r requirements.txt
 ```
 
-Na **Raspberry Pi** para GPIO real, segue a secção **“Raspberry Pi: backend GPIO”** (com `sudo` **ou** o bloco **“Sem permissão sudo”**).
+Na **Raspberry Pi**, instala `requirements.txt` (contém `RPi.GPIO`). No **PC**, o modo `central` não precisa de `RPi.GPIO`.
 
 ## Execução
 
@@ -119,13 +90,14 @@ Encerramento: `Ctrl+C` nos modos local e distribuído; no central use `sair` ou 
 | `main.py` | Subcomandos `local`, `distribuido`, `central` |
 | `semaforo/pins.py` | BCM: semáforos, pedestres, buzzer, sensores |
 | `semaforo/protocolo.py` | Serialização JSON/TCP |
-| `semaforo/botoes.py` | Pedestres + notificação opcional para o distribuído |
-| `semaforo/sensores.py` | Entradas digitais → eventos |
+| `semaforo/rpi_io.py` | Init BCM, saídas/entradas, `PolledInput` (polling) |
+| `semaforo/botoes.py` | Pedestres (polling) + notificação opcional |
+| `semaforo/sensores.py` | Sensores (polling) → eventos |
 | `semaforo/model1.py` / `model2.py` | Máquinas de estados dos semáforos |
 | `semaforo/servidor_distribuido.py` | TCP + GPIO + buzzer |
 | `semaforo/servidor_central.py` | Consola + cliente TCP |
-| `requirements.txt` | `gpiozero` |
-| `requirements-pi.txt` | `RPi.GPIO` (preferido), `pigpio`; `lgpio` opcional (README) |
+| `requirements.txt` | `RPi.GPIO` |
+| `requirements-pi.txt` | Opcional / notas (vazio de pacotes obrigatórios) |
 
 ## Comportamento resumido (semáforos)
 
@@ -134,5 +106,5 @@ Encerramento: `Ctrl+C` nos modos local e distribuído; no central use `sair` ou 
 
 ## Referências
 
-- [gpiozero](https://gpiozero.readthedocs.io/)
-- [RPi.GPIO](https://pypi.org/project/RPi.GPIO/)
+- [RPi.GPIO](https://pypi.org/project/RPi.GPIO/) (usado directamente neste projecto)
+- [gpiozero](https://gpiozero.readthedocs.io/) (referência geral da disciplina)

@@ -1,4 +1,4 @@
-"""Modelo 2 — cruzamento completo via código de 3 bits na GPIO."""
+"""Modelo 2 — cruzamento completo via código de 3 bits na GPIO. RPi.GPIO."""
 
 from __future__ import annotations
 
@@ -7,9 +7,8 @@ import time
 from enum import Enum, auto
 from typing import Any, Callable, Optional
 
-from gpiozero import OutputDevice
-
 from semaforo import pins
+from semaforo import rpi_io
 
 
 class _Estado(Enum):
@@ -51,9 +50,12 @@ class Modelo2:
         self,
         notificar: Optional[Callable[[dict[str, Any]], None]] = None,
     ) -> None:
-        self._bit0 = OutputDevice(pins.M2_BIT0, initial_value=False)
-        self._bit1 = OutputDevice(pins.M2_BIT1, initial_value=False)
-        self._bit2 = OutputDevice(pins.M2_BIT2, initial_value=False)
+        rpi_io.init()
+        self._b0 = pins.M2_BIT0
+        self._b1 = pins.M2_BIT1
+        self._b2 = pins.M2_BIT2
+        for p in (self._b0, self._b1, self._b2):
+            rpi_io.setup_output_low(p)
 
         self._lock_ped_p = threading.Lock()
         self._lock_ped_c = threading.Lock()
@@ -112,9 +114,9 @@ class Modelo2:
             return True
 
     def _aplicar_codigo(self, codigo: int) -> None:
-        self._bit0.value = bool(codigo & 1)
-        self._bit1.value = bool((codigo >> 1) & 1)
-        self._bit2.value = bool((codigo >> 2) & 1)
+        rpi_io.write_output(self._b0, bool(codigo & 1))
+        rpi_io.write_output(self._b1, bool((codigo >> 1) & 1))
+        rpi_io.write_output(self._b2, bool((codigo >> 2) & 1))
 
     def _mostrar_estado(self, st: _Estado) -> None:
         self._aplicar_codigo(CODIGO[st])
@@ -201,6 +203,8 @@ class Modelo2:
     def close(self) -> None:
         self._bot_princ.close()
         self._bot_cruz.close()
-        self._bit0.close()
-        self._bit1.close()
-        self._bit2.close()
+        rpi_io.write_output(self._b0, False)
+        rpi_io.write_output(self._b1, False)
+        rpi_io.write_output(self._b2, False)
+        for p in (self._b0, self._b1, self._b2):
+            rpi_io.cleanup_pin(p)

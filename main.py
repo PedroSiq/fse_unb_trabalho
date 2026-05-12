@@ -9,7 +9,6 @@ Entrada do sistema:
 from __future__ import annotations
 
 import argparse
-import os
 import signal
 import sys
 import threading
@@ -17,52 +16,24 @@ import time
 from typing import Any, Optional
 
 
-def _configure_gpio_pin_factory() -> bool:
-    """
-    Evita o NativeFactory (sysfs), que em Pi OS recente não serve.
-
-    Ordem: **RPi.GPIO** → **lgpio** → **pigpio** (daemon `pigpiod` activo).
-    """
-    if os.environ.get("GPIOZERO_PIN_FACTORY", "").strip():
-        return True
+def _ensure_rpi_gpio() -> bool:
+    """GPIO só com RPi.GPIO (sem gpiozero)."""
     try:
         import RPi.GPIO  # noqa: F401
-
-        os.environ["GPIOZERO_PIN_FACTORY"] = "rpigpio"
-        return True
     except ImportError:
-        pass
-    try:
-        import lgpio  # noqa: F401
+        sys.stderr.write(
+            "ERRO: módulo RPi.GPIO não encontrado. Na Pi: pip install RPi.GPIO\n"
+        )
+        sys.stderr.flush()
+        return False
+    from semaforo import rpi_io
 
-        os.environ["GPIOZERO_PIN_FACTORY"] = "lgpio"
-        return True
-    except ImportError:
-        pass
-    try:
-        import pigpio
-
-        pi = pigpio.pi()
-        if pi.connected:
-            pi.stop()
-            os.environ["GPIOZERO_PIN_FACTORY"] = "pigpio"
-            return True
-    except Exception:
-        pass
-
-    sys.stderr.write(
-        "ERRO: nenhum backend GPIO utilizável (RPi.GPIO / lgpio / pigpio).\n"
-        "  Tenta no venv: pip install RPi.GPIO\n"
-        "  Ou: pip install pigpio (com pigpiod a correr)\n"
-        "  Verifica pigpio: python3 -c \"import pigpio; p=pigpio.pi(); print(p.connected); p.stop()\"\n"
-        "  Alternativa: README (lgpio via piwheels ou venv --system-site-packages).\n"
-    )
-    sys.stderr.flush()
-    return False
+    rpi_io.init()
+    return True
 
 
 def _run_local(args: argparse.Namespace) -> int:
-    if not _configure_gpio_pin_factory():
+    if not _ensure_rpi_gpio():
         return 2
     stop = threading.Event()
     m1: Any = None
@@ -132,12 +103,18 @@ def _run_local(args: argparse.Namespace) -> int:
                 m2.close()
             except Exception:
                 pass
+        try:
+            from semaforo import rpi_io
+
+            rpi_io.cleanup_all()
+        except Exception:
+            pass
 
     return 0
 
 
 def _run_distribuido(args: argparse.Namespace) -> int:
-    if not _configure_gpio_pin_factory():
+    if not _ensure_rpi_gpio():
         return 2
     from semaforo.servidor_distribuido import ServidorDistribuido
 

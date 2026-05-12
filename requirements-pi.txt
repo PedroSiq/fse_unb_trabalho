@@ -1,16 +1,3 @@
-# Extras na Raspberry Pi (além de requirements.txt).
-#
-# Ordem usada pelo main.py: RPi.GPIO → lgpio → pigpio
-#
-# --- Preferido: RPi.GPIO (wheels em ARM via piwheels) ---
-RPi.GPIO>=0.7.1
-#
-# --- Opcional: pigpio (requer pigpiod a correr) ---
-pigpio>=1.78
-#
-# --- lgpio (Pi 5 / Bookworm se RPi.GPIO não servir; ver README) ---
-# pip install "lgpio>=0.2.0.0" --extra-index-url https://www.piwheels.org/simple
-# ou: sudo apt install python3-lgpio + venv --system-site-packages
-#
-# --- Sem sudo: testar /usr/bin/python3 -c "import RPi.GPIO" ou "import lgpio";
-#     recriar venv com --system-site-packages se o sistema já tiver o módulo.
+# Opcional na Pi (o projecto usa só RPi.GPIO; ver requirements.txt).
+# pigpio>=1.78
+# lgpio — ver README se precisares de alternativa
