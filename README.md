@@ -28,6 +28,22 @@ Mensagens: **JSON uma linha por mensagem**, campo `"v": 1`.
 - Python 3.9+.
 - Pinos BCM conforme `semaforo/pins.py` (semáforos da entrega 1 + buzzer e sensores documentados lá).
 
+## Raspberry Pi: GPIO 1 (pedestre M1) e backend GPIO
+
+A tabela da entrega indica **BCM 1** para o botão “Pedestre Principal” do Modelo 1. Em muitas Raspberry Pi esse pino **não está disponível** para utilizador (reserva do sistema), o que gera `OSError: [Errno 22] Invalid argument` ao exportar GPIO.
+
+- **Pino por variável de ambiente** (valor por defeito no código é **27** para o laboratório arrancar; ajusta ao teu kit):
+
+  ```bash
+  export FSE_PIN_M1_PED_PRINCIPAL=1   # só se a tua Pi aceitar BCM 1
+  ```
+
+- **Backend `lgpio`** (recomendado em Pi OS Bookworm): o `main.py` tenta usá-lo automaticamente se o pacote existir.
+
+  ```bash
+  sudo apt install python3-lgpio
+  ```
+
 ## Instalação
 
 ```bash
@@ -80,7 +96,7 @@ Encerramento: `Ctrl+C` nos modos local e distribuído; no central use `sair` ou 
 
 ## Comportamento resumido (semáforos)
 
-- **Modelo 1:** verde 10 s (mín. 5 s para pedestre antecipar amarelo), amarelo 2 s, vermelho 10 s. LEDs GPIO **17, 18, 23**; botões **1** e **12**.
+- **Modelo 1:** verde 10 s (mín. 5 s para pedestre antecipar amarelo), amarelo 2 s, vermelho 10 s. LEDs GPIO **17, 18, 23**; botões: tabela **BCM 1** e **12** — se BCM 1 falhar na Pi, ver secção acima (`FSE_PIN_M1_PED_PRINCIPAL`, defeito **27** no código).
 - **Modelo 2:** ciclo S1→S2→S4→S5→S6→S4; bits GPIO **24, 8, 7**; botões **25** e **22**.
 
 ## Referências

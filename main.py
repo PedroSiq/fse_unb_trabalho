@@ -9,6 +9,7 @@ Entrada do sistema:
 from __future__ import annotations
 
 import argparse
+import os
 import signal
 import sys
 import threading
@@ -16,7 +17,22 @@ import time
 from typing import Any, Optional
 
 
+def _prefer_lgpio_factory() -> None:
+    """
+    Em Pi OS recente, o backend *native* (sysfs) falha em vários BCM.
+    Se existir o módulo `lgpio`, usa o backend gpiochip por defeito.
+    """
+    if os.environ.get("GPIOZERO_PIN_FACTORY", "").strip():
+        return
+    try:
+        import lgpio  # noqa: F401
+    except ImportError:
+        return
+    os.environ["GPIOZERO_PIN_FACTORY"] = "lgpio"
+
+
 def _run_local(args: argparse.Namespace) -> int:
+    _prefer_lgpio_factory()
     stop = threading.Event()
     m1: Any = None
     m2: Any = None
@@ -90,6 +106,7 @@ def _run_local(args: argparse.Namespace) -> int:
 
 
 def _run_distribuido(args: argparse.Namespace) -> int:
+    _prefer_lgpio_factory()
     from semaforo.servidor_distribuido import ServidorDistribuido
 
     sd = ServidorDistribuido(
