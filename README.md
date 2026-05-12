@@ -28,21 +28,23 @@ Mensagens: **JSON uma linha por mensagem**, campo `"v": 1`.
 - Python 3.9+.
 - Pinos BCM conforme `semaforo/pins.py` (semáforos da entrega 1 + buzzer e sensores documentados lá).
 
-## Raspberry Pi: GPIO 1 (pedestre M1) e backend GPIO
+## Raspberry Pi: backend GPIO e BCM 1 (pedestre M1)
 
-A tabela da entrega indica **BCM 1** para o botão “Pedestre Principal” do Modelo 1. Em muitas Raspberry Pi esse pino **não está disponível** para utilizador (reserva do sistema), o que gera `OSError: [Errno 22] Invalid argument` ao exportar GPIO.
+Sem **`lgpio`** ou **`RPi.GPIO`** instalados **no mesmo venv** que corre o `python3`, o `gpiozero` cai no *NativeFactory* (sysfs). Em Pi OS recente o sysfs GPIO **nem existe** → aparecem `Falling back…` e depois `OSError: [Errno 22]` / `FileNotFoundError` em `/sys/class/gpio/...` **para qualquer BCM** (ex.: 27).
 
-- **Pino por variável de ambiente** (valor por defeito no código é **27** para o laboratório arrancar; ajusta ao teu kit):
+1. Na Pi (venv ativado):
 
-  ```bash
-  export FSE_PIN_M1_PED_PRINCIPAL=1   # só se a tua Pi aceitar BCM 1
-  ```
+   ```bash
+   pip install -r requirements-pi.txt
+   ```
 
-- **Backend `lgpio`** (recomendado em Pi OS Bookworm): o `main.py` tenta usá-lo automaticamente se o pacote existir.
+   Em **Pi 5** basta normalmente o **`lgpio`**; se `RPi.GPIO` falhar a instalar, usa `pip install lgpio`.
 
-  ```bash
-  sudo apt install python3-lgpio
-  ```
+2. **BCM 1** (tabela da entrega): muitas Pi reservam esse pino. O defeito no código é **27**; para forçar BCM 1:
+
+   ```bash
+   export FSE_PIN_M1_PED_PRINCIPAL=1
+   ```
 
 ## Instalação
 
@@ -52,6 +54,8 @@ python3 -m venv .venv
 source .venv/bin/activate
 pip install -U pip
 pip install -r requirements.txt
+# Na Raspberry Pi (modo local/distribuido), também:
+pip install -r requirements-pi.txt
 ```
 
 ## Execução
@@ -93,6 +97,7 @@ Encerramento: `Ctrl+C` nos modos local e distribuído; no central use `sair` ou 
 | `semaforo/servidor_distribuido.py` | TCP + GPIO + buzzer |
 | `semaforo/servidor_central.py` | Consola + cliente TCP |
 | `requirements.txt` | `gpiozero` |
+| `requirements-pi.txt` | `lgpio`, `RPi.GPIO` (só na Pi, no mesmo venv) |
 
 ## Comportamento resumido (semáforos)
 

@@ -1,0 +1,7 @@
+# Pacotes extra para GPIO real na Raspberry Pi (além de requirements.txt).
+# Instalar no venv da Pi:
+#   pip install -r requirements.txt
+#   pip install -r requirements-pi.txt
+#
+lgpio>=0.2.0.0
+RPi.GPIO>=0.7.1
