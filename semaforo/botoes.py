@@ -1,4 +1,4 @@
-"""Leitura de botões com debounce e impressão imediata (RPi.GPIO + polling)."""
+"""Botão de pedestre: debounce por tempo, registro em stdout e notificação opcional (rede)."""
 
 from __future__ import annotations
 
@@ -10,9 +10,14 @@ from typing import Any, Callable, Optional
 from semaforo.rpi_io import PolledInput
 
 
+# Botão de pedestre — leitura por PolledInput e tratamento do acionamento com debounce.
+
+
 class BotaoPedestre:
     """
-    Botão ativo em nível alto; pull-down interno; debounce por lockout em software.
+    Entrada ativa em nível alto (pull-down interno).
+
+    Após cada acionamento válido, aplica intervalo mínimo (lockout) para debounce por software.
     """
 
     def __init__(

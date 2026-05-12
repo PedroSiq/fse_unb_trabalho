@@ -1,5 +1,7 @@
 """
-Servidor central: interface de utilizador (consola) + ligação TCP/IP ao distribuído.
+Servidor central: interface em linha de comando e cliente TCP ao distribuído.
+
+Lê comandos do operador; mensagens recebidas da Raspberry são exibidas no stdout com o prefixo [dist].
 """
 
 from __future__ import annotations
@@ -14,6 +16,8 @@ from semaforo.protocolo import PROTO_VERSAO, iter_mensagens, serializar
 
 
 class ServidorCentral:
+    """Cliente TCP persistente: thread de leitura do socket e laço principal com input interativo."""
+
     def __init__(self, host: str, port: int) -> None:
         self._host = host
         self._port = port
@@ -21,15 +25,17 @@ class ServidorCentral:
         self._stop = threading.Event()
         self._buf = bytearray()
 
+    # Ajuda e leitura do socket — exibe mensagens JSON recebidas linha a linha.
+
     def _ajuda(self) -> None:
         sys.stdout.write(
             f"""
 === Servidor central (→ {self._host}:{self._port}) ===
-  ping              — pergunta ao distribuído
-  buzzer [ms]       — ex.: buzzer 250 (padrão 200 ms)
+  ping              — teste de ida e volta com o distribuído
+  buzzer [ms]       — exemplo: buzzer 250 (padrão 200 ms)
   status            — pedido genérico de estado
-  sair              — termina
-(v={PROTO_VERSAO} em todas as mensagens JSON)
+  sair              — encerra o programa
+(v={PROTO_VERSAO} em todas as mensagens trocadas com a Pi)
 """
         )
         sys.stdout.flush()
@@ -45,7 +51,7 @@ class ServidorCentral:
             except OSError:
                 break
             if not chunk:
-                sys.stdout.write("[central] ligação fechada pelo distribuído.\n")
+                sys.stdout.write("[central] conexão encerrada pelo distribuído.\n")
                 sys.stdout.flush()
                 self._stop.set()
                 break
@@ -56,12 +62,16 @@ class ServidorCentral:
                     )
                     sys.stdout.flush()
             except (json.JSONDecodeError, UnicodeDecodeError) as e:
-                sys.stdout.write(f"[central] JSON inválido: {e}\n")
+                sys.stdout.write(f"[central] mensagem recebida com JSON inválido: {e}\n")
                 sys.stdout.flush()
+
+    # Envio de comandos — serializa e envia pelo socket conectado.
 
     def _enviar(self, obj: dict) -> None:
         assert self._sock is not None
         self._sock.sendall(serializar(obj))
+
+    # Execução principal — conexão, thread de leitura e processamento de comandos até sair.
 
     def run(self) -> None:
         self._sock = socket.create_connection((self._host, self._port), timeout=10.0)

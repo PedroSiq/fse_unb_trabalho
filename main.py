@@ -1,13 +1,3 @@
-#!/usr/bin/env python3
-"""
-Entrada do sistema:
-  local         — só GPIO (semáforos na Raspberry, sem rede)
-  distribuido   — servidor distribuído: GPIO + TCP/IP (corre na Pi)
-  central       — interface de utilizador + TCP/IP (corre no PC ou na Pi)
-"""
-
-from __future__ import annotations
-
 import argparse
 import signal
 import sys
@@ -16,8 +6,11 @@ import time
 from typing import Any, Optional
 
 
+# Verificação de ambiente — exige RPi.GPIO nos modos que acessam hardware na Raspberry Pi.
+
+
 def _ensure_rpi_gpio() -> bool:
-    """GPIO só com RPi.GPIO (sem gpiozero)."""
+    """Verifica a importação de RPi.GPIO e inicializa o modo BCM dos pinos."""
     try:
         import RPi.GPIO  # noqa: F401
     except ImportError:
@@ -30,6 +23,9 @@ def _ensure_rpi_gpio() -> bool:
 
     rpi_io.init()
     return True
+
+
+# Modo local — executa os modelos de semáforo em threads e libera os pinos ao encerrar.
 
 
 def _run_local(args: argparse.Namespace) -> int:
@@ -113,6 +109,9 @@ def _run_local(args: argparse.Namespace) -> int:
     return 0
 
 
+# Modo distribuído — ciclo de vida do ServidorDistribuido (GPIO e rede na Raspberry Pi).
+
+
 def _run_distribuido(args: argparse.Namespace) -> int:
     if not _ensure_rpi_gpio():
         return 2
@@ -147,6 +146,9 @@ def _run_distribuido(args: argparse.Namespace) -> int:
     return 0
 
 
+# Modo central — interface textual ligada ao host e à porta do distribuído.
+
+
 def _run_central(args: argparse.Namespace) -> int:
     from semaforo.servidor_central import ServidorCentral
 
@@ -154,50 +156,55 @@ def _run_central(args: argparse.Namespace) -> int:
     try:
         sc.run()
     except (ConnectionRefusedError, OSError) as e:
-        sys.stderr.write(f"Sem ligação ao distribuído: {e}\n")
+        sys.stderr.write(f"Sem conexão com o distribuído: {e}\n")
         return 1
     return 0
 
 
+# Linha de comando — definição dos subcomandos local, distribuido e central.
+
+
 def main() -> int:
-    p = argparse.ArgumentParser(description="Sistema de semáforos (local / central / distribuído).")
+    p = argparse.ArgumentParser(
+        description="Semáforos (FSE): modos local, distribuido e central.",
+    )
     sub = p.add_subparsers(dest="modo", required=True)
 
-    p_loc = sub.add_parser("local", help="Apenas GPIO na máquina local (sem TCP).")
+    p_loc = sub.add_parser("local", help="Apenas GPIO neste host, sem TCP.")
     p_loc.add_argument(
         "--modelo",
         choices=("1", "2", "ambos"),
         default="ambos",
-        help="Modelo de semáforo a executar.",
+        help="Qual modelo de semáforo executar: 1, 2 ou ambos.",
     )
 
     p_dist = sub.add_parser(
         "distribuido",
-        help="Servidor com GPIO + sensores + buzzer; aceita TCP do central.",
+        help="Na Raspberry Pi: semáforos, sensores e buzzer; aguarda o modo central na rede.",
     )
     p_dist.add_argument(
         "--host",
         default="0.0.0.0",
-        help="Endereço de escuta (padrão todas as interfaces).",
+        help="Endereço de escuta (0.0.0.0 = todas as interfaces de rede).",
     )
-    p_dist.add_argument("--port", type=int, default=8765, help="Porta TCP.")
+    p_dist.add_argument("--port", type=int, default=8765, help="Porta TCP do servidor.")
     p_dist.add_argument(
         "--modelo",
         choices=("1", "2", "ambos"),
         default="ambos",
-        help="Quais máquinas de semáforo carregar.",
+        help="Modelos a carregar no distribuído: 1, 2 ou ambos.",
     )
 
     p_cen = sub.add_parser(
         "central",
-        help="Interface de utilizador na consola; liga ao distribuído por TCP.",
+        help="Interface em terminal: envia comandos JSON ao servidor distribuído.",
     )
     p_cen.add_argument(
         "--host",
         required=True,
-        help="IP ou hostname do servidor distribuído (ex.: 192.168.1.10).",
+        help="Host onde o modo distribuido está em execução (IP ou nome DNS).",
     )
-    p_cen.add_argument("--port", type=int, default=8765, help="Porta TCP do distribuído.")
+    p_cen.add_argument("--port", type=int, default=8765, help="Porta TCP (igual à do distribuido).")
 
     args = p.parse_args()
 

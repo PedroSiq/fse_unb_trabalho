@@ -1,6 +1,8 @@
 """
-Servidor distribuído: GPIO (semáforos 1+3 e 2+4, botões, sensores), buzzer e TCP/IP.
-Recebe comandos do servidor central e envia eventos (JSON por linha).
+Servidor distribuído: executa na Raspberry Pi.
+
+Integra semáforos, botões, sensores, buzzer e servidor TCP; recebe comandos do central
+e envia eventos (pedestre, sensor, respostas a ping/status) em JSON por linha.
 """
 
 from __future__ import annotations
@@ -19,7 +21,11 @@ from semaforo.sensores import SensorDigital
 
 
 class ServidorDistribuido:
-    """Escuta TCP; em paralelo executa lógica de semáforo + sensores + buzzer."""
+    """
+    Coordena threads de semáforo, sensores, fila de saída TCP e aceitação de conexões.
+
+    O buzzer executa em thread separada para não bloquear o tratamento de comandos.
+    """
 
     def __init__(
         self,
@@ -45,6 +51,8 @@ class ServidorDistribuido:
         self._workers: list[threading.Thread] = []
         self._sock_srv: Optional[socket.socket] = None
 
+    # Fila de saída — enfileira eventos e replica aos clientes TCP conectados.
+
     def _enqueue(self, msg: dict[str, Any]) -> None:
         msg.setdefault("v", PROTO_VERSAO)
         msg.setdefault("no", "distribuido-1")
@@ -62,6 +70,8 @@ class ServidorDistribuido:
 
         return _fn
 
+    # Buzzer — emite pulso de duração limitada (mínimo e máximo em milissegundos).
+
     def _beep(self, ms: int) -> None:
         ms = max(10, min(ms, 5000))
         try:
@@ -69,6 +79,8 @@ class ServidorDistribuido:
             time.sleep(ms / 1000.0)
         finally:
             rpi_io.write_output(self._buzzer_pin, False)
+
+    # Rede TCP — envio assíncrono, leitura por cliente e ciclo de accept.
 
     def _loop_envio(self) -> None:
         while not self._stop.is_set():
@@ -91,6 +103,8 @@ class ServidorDistribuido:
                         cli.close()
                     except OSError:
                         pass
+
+    # Comandos do central — interpreta ping, buzzer e status em JSON.
 
     def _processar_comando(self, obj: dict[str, Any], _origem: socket.socket) -> None:
         if not isinstance(obj, dict) or obj.get("v") != PROTO_VERSAO:
@@ -154,6 +168,8 @@ class ServidorDistribuido:
                 daemon=True,
             ).start()
 
+    # Sensores — instancia a partir de pins; eventos na mesma fila de saída.
+
     def _montar_sensores(self) -> None:
         n: Callable[[dict[str, Any]], None] = lambda e: self._enqueue(e)
         specs = [
@@ -186,6 +202,8 @@ class ServidorDistribuido:
             self._sensores.append(
                 SensorDigital(pin, nome, cat, sid, notificar=n),
             )
+
+    # Inicialização em execução — inicia modelos, sensores, thread de envio e socket em escuta.
 
     def run(self) -> None:
         from semaforo.model1 import Modelo1
@@ -225,6 +243,8 @@ class ServidorDistribuido:
         self._sock_srv.listen(4)
         accept_thr = threading.Thread(target=self._loop_accept, name="AcceptTCP", daemon=True)
         accept_thr.start()
+
+    # Encerramento — sinaliza parada, aguarda threads, fecha sockets e libera GPIO.
 
     def close(self) -> None:
         self._stop.set()

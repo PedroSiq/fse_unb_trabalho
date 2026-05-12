@@ -1,4 +1,8 @@
-"""Modelo 2 — cruzamento completo via código de 3 bits na GPIO. RPi.GPIO."""
+"""
+Modelo 2: três saídas que codificam o estado (S1 a S6).
+
+Tempos de verde entre mínimo e máximo; pedestre pode antecipar o amarelo após o mínimo em verde.
+"""
 
 from __future__ import annotations
 
@@ -11,8 +15,11 @@ from semaforo import pins
 from semaforo import rpi_io
 
 
+# Estados do cruzamento — sequência conforme o enunciado (S1, S2, S4, S5, S6).
+
+
 class _Estado(Enum):
-    """Sequência: S1 → S2 → S4 → S5 → S6 → S4 → S1 …"""
+    """Sequência: S1 → S2 → S4 → S5 → S6 → S4 → retorno ao ciclo inicial."""
 
     S1_VERDE_VERMELHO = auto()  # código 1
     S2_AMARELO_VERMELHO = auto()  # código 2
@@ -21,7 +28,8 @@ class _Estado(Enum):
     S6_VERMELHO_AMARELO = auto()  # código 6
 
 
-# Códigos 3 bits (bit0 → GPIO24, bit1 → GPIO8, bit2 → GPIO7)
+# Mapeamento estado–código — valor de 3 bits nas saídas GPIO (bit 0 = M2_BIT0).
+
 CODIGO = {
     _Estado.S1_VERDE_VERMELHO: 1,
     _Estado.S2_AMARELO_VERMELHO: 2,
@@ -33,10 +41,10 @@ CODIGO = {
 
 class Modelo2:
     """
-    Temporização (s): verde principal 10–20, verde cruzamento 5–10;
-    amarelos e vermelho total: 2.
-    Botão principal (GPIO 25): durante verde principal, após mínimo antecipa S2.
-    Botão cruzamento (GPIO 22): durante verde cruzamento, após mínimo antecipa S6.
+    Cruzamento com duas vias; tempos de verde principal e de cruzamento entre mínimo e máximo.
+
+    Cada botão de pedestre só é considerado na respectiva fase de verde; após o mínimo,
+    o acionamento pode antecipar o amarelo daquele lado.
     """
 
     T_VERDE_PRINC_MIN = 10.0
@@ -45,6 +53,8 @@ class Modelo2:
     T_VERDE_CRUZ_MAX = 10.0
     T_AMARELO = 2.0
     T_VERMELHO_TOTAL = 2.0
+
+    # Construtor — saídas em nível baixo e botões com flags sincronizadas por lock.
 
     def __init__(
         self,
@@ -78,6 +88,8 @@ class Modelo2:
             on_press=self._marcar_ped_cruzamento,
             notificar=notificar,
         )
+
+    # Pedestres — cada botão só é aceito na fase de verde correspondente.
 
     def _marcar_ped_principal(self) -> None:
         if not self._aceita_ped_principal:
@@ -113,6 +125,8 @@ class Modelo2:
             self._ped_cruzamento = False
             return True
 
+    # Saídas — escreve o código de 3 bits nas linhas GPIO do modelo 2.
+
     def _aplicar_codigo(self, codigo: int) -> None:
         rpi_io.write_output(self._b0, bool(codigo & 1))
         rpi_io.write_output(self._b1, bool((codigo >> 1) & 1))
@@ -131,6 +145,8 @@ class Modelo2:
                 return True
             time.sleep(min(0.05, fim - time.monotonic()))
         return False
+
+    # Fases de verde prolongadas — espera em fatias curtas para permitir encerramento rápido.
 
     def _aguardar_verde_principal(self, stop: Optional[threading.Event]) -> bool:
         self._mostrar_estado(_Estado.S1_VERDE_VERMELHO)
@@ -175,6 +191,8 @@ class Modelo2:
         finally:
             self._aceita_ped_cruzamento = False
         return bool(stop and stop.is_set())
+
+    # Laço principal — percorre a sequência completa de estados do cruzamento.
 
     def run_forever(self, stop: Optional[threading.Event] = None) -> None:
         while stop is None or not stop.is_set():

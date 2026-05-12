@@ -1,4 +1,8 @@
-"""Modelo 1 — três LEDs independentes (Verde → Amarelo → Vermelho). RPi.GPIO."""
+"""
+Modelo 1: três saídas independentes (verde, amarelo, vermelho).
+
+Implementa os tempos do enunciado e a lógica de pedestre (mínimo de verde antes de antecipar o amarelo).
+"""
 
 from __future__ import annotations
 
@@ -11,6 +15,9 @@ from semaforo import pins
 from semaforo import rpi_io
 
 
+# Enum interno — fases do ciclo verde, amarelo e vermelho.
+
+
 class _Fase(Enum):
     VERDE = auto()
     AMARELO = auto()
@@ -19,16 +26,18 @@ class _Fase(Enum):
 
 class Modelo1:
     """
-    Ciclo: Verde (10 s) → Amarelo (2 s) → Vermelho (10 s) → …
-    Verde mínimo para atendimento ao pedestre: 5 s.
-    Dois botões (OR) solicitam travessia: após 5 s de verde antecipam amarelo;
-    antes dos 5 s aguarda o mínimo e então amarelo.
+    Ciclo verde → amarelo → vermelho com durações fixas.
+
+    Os dois botões de pedestre em lógica OU: durante o verde, após o tempo mínimo,
+    o pedido antecipa o amarelo; antes disso, aguarda-se o mínimo exigido.
     """
 
     T_VERDE_S = 10.0
     T_VERDE_MIN_PED_S = 5.0
     T_AMARELO_S = 2.0
     T_VERMELHO_S = 10.0
+
+    # Construtor — configura saídas dos LEDs e instancia os botões de pedestre.
 
     def __init__(
         self,
@@ -60,6 +69,8 @@ class Modelo1:
             notificar=notificar,
         )
 
+    # Pedestre — flag protegida por lock, válida somente na fase verde.
+
     def _marcar_ped(self) -> None:
         if not self._em_verde:
             return
@@ -77,6 +88,8 @@ class Modelo1:
         with self._ped_lock:
             return self._ped_solicitado
 
+    # Saídas — apenas um LED aceso por fase.
+
     def _apagar_todos(self) -> None:
         rpi_io.write_output(self._pv, False)
         rpi_io.write_output(self._pa, False)
@@ -90,6 +103,8 @@ class Modelo1:
             rpi_io.write_output(self._pa, True)
         else:
             rpi_io.write_output(self._px, True)
+
+    # Laço principal — avança as fases e consulta o pedestre no verde.
 
     def run_forever(self, stop: Optional[threading.Event] = None) -> None:
         fase = _Fase.VERMELHO
@@ -139,7 +154,7 @@ class Modelo1:
                 fase = _Fase.VERMELHO
 
     def _aguardar(self, segundos: float, stop: Optional[threading.Event] = None) -> bool:
-        """Retorna True se interrompido por `stop`."""
+        """Aguarda até `segundos`; retorna True se `stop` for sinalizado durante a espera."""
         if segundos <= 0:
             return bool(stop and stop.is_set())
         fim = time.monotonic() + segundos

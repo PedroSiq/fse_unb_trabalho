@@ -1,3 +1,3 @@
-"""Controle de semáforos (Modelo 1 e Modelo 2) para Raspberry Pi."""
+"""Pacote semaforo: modelos de cruzamento, GPIO, protocolo de mensagens e servidores central/distribuído."""
 
 __version__ = "1.0.0"

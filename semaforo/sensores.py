@@ -1,4 +1,4 @@
-"""Entradas digitais para sensores (RPi.GPIO + polling)."""
+"""Sensor digital: mesma lógica elétrica dos botões; evento opcional para o servidor distribuído."""
 
 from __future__ import annotations
 
@@ -10,10 +10,14 @@ from typing import Callable, Optional
 from semaforo.rpi_io import PolledInput
 
 
+# Sensor digital — leitura por PolledInput; categorização para logs e mensagens de rede.
+
+
 class SensorDigital:
     """
-    Pulso ativo em alto (mesma convenção dos botões de pedestre).
-    Debounce + impressão + notificação opcional (ex.: TCP).
+    Pulso em nível alto; debounce análogo ao dos botões de pedestre.
+
+    Opcionalmente encaminha dicionário de evento para callback (por exemplo enfileiramento TCP).
     """
 
     def __init__(

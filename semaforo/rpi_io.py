@@ -1,4 +1,9 @@
-"""GPIO com RPi.GPIO (BCM), sem gpiozero — evita add_event_detect / camadas extra."""
+"""
+Acesso aos pinos via RPi.GPIO (modo BCM).
+
+Entradas são lidas por consulta periódica em thread, em vez de interrupção por borda,
+para melhor compatibilidade entre versões da Raspberry Pi e do Python em ambiente de laboratório.
+"""
 
 from __future__ import annotations
 
@@ -7,6 +12,9 @@ from typing import Callable
 
 _lock = threading.Lock()
 _initialized = False
+
+
+# Configuração global — modo BCM, pinos como saída ou entrada com pull-down.
 
 
 def init() -> None:
@@ -67,10 +75,14 @@ def cleanup_all() -> None:
         _initialized = False
 
 
+# Entrada digital — detecção de borda de subida por consulta periódica em thread em segundo plano.
+
+
 class PolledInput:
     """
-    Entrada digital com pull-down; deteta **flanco de subida** por *polling*
-    (sem add_event_detect).
+    Consulta o pino em intervalos regulares; em transição de baixo para alto, dispara o callback.
+
+    Evita depender de add_event_detect do RPi.GPIO em cenários onde esse recurso falha.
     """
 
     def __init__(
